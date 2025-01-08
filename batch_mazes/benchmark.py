@@ -31,7 +31,6 @@ class AStarRS(PathfinderBase):
 
 
 def process_row(row):
-    logger.info(f"Processing row seed={row['seed']}")
     maze: VMaze = row["maze"]
 
     # Naive A* search
@@ -79,7 +78,6 @@ def main():
     maze_size = mazes.iloc[0]["size"]
     logger.info(f"Maze size: {maze_size}")
 
-    # Initialize tqdm for pandas
     tqdm.pandas(desc="Processing mazes")
 
     mazes = mazes.progress_apply(process_row, axis=1)
@@ -98,9 +96,12 @@ def main():
 
     logger.info("df.head():\n{}".format(mazes.head()))
 
-    logger.info("Saving results")
     timestamp = str(time()).split(".")[0]
-    mazes.to_pickle(f"{args.maze_file}_run-{timestamp}.pkl")
+    file_name = f"{args.maze_file}_run-{timestamp}.pkl"
+
+    logger.info(f"Saving results to {file_name}")
+    mazes.to_pickle(file_name)
+    logger.info("Done")
 
     return 0
 
