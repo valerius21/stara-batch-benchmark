@@ -7,7 +7,6 @@ import subprocess
 import pandas as pd
 from loguru import logger
 from tqdm import tqdm
-from numpy.typing import NDArray
 
 
 from stara_maze_generator.vmaze import VMaze
@@ -17,6 +16,9 @@ from stara_astar_numba.astar_numba import AStarNumba
 
 from stara_maze_generator.pathfinder.base import PathfinderBase
 from stara_rs.stara_rs import MazeSolver
+
+# Number of runs, if the time is less than 1ns, we run N times and take the average
+N = 1_000
 
 
 class AStarRS(PathfinderBase):
@@ -48,10 +50,20 @@ def stara_rs_preprocess(df):
         start_time = time_ns()
         astar_maze.find_path(start, goal)
         end_time = time_ns()
+        delta = end_time - start_time
+        if end_time - start_time <= 1:
+            acc = 0
+            for _ in range(N):
+                start_time = time_ns()
+                astar_maze.find_path(start, goal)
+                end_time = time_ns()
+                acc += end_time - start_time
+
+            delta = acc / N
         res.append(
             {
                 "seed": astar_maze.maze.seed,
-                "pyo3_pp": end_time - start_time,
+                "pyo3_pp": delta,
             }
         )
     return pd.DataFrame(res)
@@ -65,14 +77,32 @@ def process_row(row):
     start_time = time_ns()
     naive.find_path(maze.start, maze.goal)
     end_time = time_ns()
-    row["naive"] = end_time - start_time
+    delta = end_time - start_time
+    if end_time - start_time <= 1:
+        acc = 0
+        for _ in range(N):
+            start_time = time_ns()
+            naive.find_path(maze.start, maze.goal)
+            end_time = time_ns()
+            acc += end_time - start_time
+        delta = acc / N
+    row["naive"] = delta
 
     # StdLib A* search
     stdlib = AStarStdLib(maze)
     start_time = time_ns()
     stdlib.find_path(maze.start, maze.goal)
     end_time = time_ns()
-    row["stdlib"] = end_time - start_time
+    delta = end_time - start_time
+    if end_time - start_time <= 1:
+        acc = 0
+        for _ in range(N):
+            start_time = time_ns()
+            stdlib.find_path(maze.start, maze.goal)
+            end_time = time_ns()
+            acc += end_time - start_time
+        delta = acc / N
+    row["stdlib"] = delta
 
     # Rust A* search
     rs = AStarRS(maze)
@@ -81,14 +111,32 @@ def process_row(row):
     start_time = time_ns()
     rs.find_path(start, goal)
     end_time = time_ns()
-    row["pyo3"] = end_time - start_time
+    delta = end_time - start_time
+    if end_time - start_time <= 1:
+        acc = 0
+        for _ in range(N):
+            start_time = time_ns()
+            rs.find_path(start, goal)
+            end_time = time_ns()
+            acc += end_time - start_time
+        delta = acc / N
+    row["pyo3"] = delta
 
     # numba A* search
     numba = AStarNumba(maze)
     start_time = time_ns()
     numba.find_path(maze.start, maze.goal)
     end_time = time_ns()
-    row["numba"] = end_time - start_time
+    delta = end_time - start_time
+    if end_time - start_time <= 1:
+        acc = 0
+        for _ in range(N):
+            start_time = time_ns()
+            numba.find_path(maze.start, maze.goal)
+            end_time = time_ns()
+            acc += end_time - start_time
+        delta = acc / N
+    row["numba"] = delta
 
     return row
 
