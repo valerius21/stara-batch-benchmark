@@ -422,13 +422,15 @@ develop = false
 
 [package.dependencies]
 nuitka = "^2.5.9"
+pandas = "^2.2.3"
 stara-maze-generator = {git = "https://github.com/valerius21/Stara-Maze-Generator.git", branch = "numpy-2.1.3"}
+tqdm = "^4.67.1"
 
 [package.source]
 type = "git"
 url = "https://github.com/valerius21/stara_astar_nuitka.git"
 reference = "numpy-2.1.3"
-resolved_reference = "64823896d241e4e3386885b7036adb8a211b1271"
+resolved_reference = "275a849512df450b7d6e07b8d7b0b40ccd760b84"
 
 [[package]]
 name = "stara-astar-numba"
@@ -488,13 +490,13 @@ resolved_reference = "be2b3738d9c15e938455bfeea953f07c50f6200c"
 
 [[package]]
 name = "stara-rs"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "stara_rs-0.1.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:f34015b725e7ae699c5c975f7239dd905ec841e278d5229623dbfe7e5a45109a"},
-    {file = "stara_rs-0.1.0.tar.gz", hash = "sha256:432b6519fe44042c382d718332eb1b8dc423d1170e8f14fda16e3494a1777302"},
+    {file = "stara_rs-0.2.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:2fb1e70b3bb0773041d251415ed992b44e41d164a89e42d108d81c8608101344"},
+    {file = "stara_rs-0.2.0.tar.gz", hash = "sha256:835ef7144253f7ab4013db401a0f13b72e77cdd1af6a1ad54482f86dd6f9d2ba"},
 ]
 
 [[package]]
@@ -658,4 +660,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "d5b765d6439232060821d2bf3c9288381e6fba3c6847793b2b48fbd98b2eb507"
+content-hash = "5c04ae0cb14dbde9b8a8b7ac628e1fd12ebafb3cc9a49d2308bf7eda6ac0c9b8"

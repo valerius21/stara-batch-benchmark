@@ -16,44 +16,77 @@ from stara_astar_stdlib.a_star_stdlib import AStarStdLib
 from stara_astar_numba.astar_numba import AStarNumba
 
 from stara_maze_generator.pathfinder.base import PathfinderBase
-from stara_rs.stara_rs import astar
+from stara_rs.stara_rs import MazeSolver
 
 
 class AStarRS(PathfinderBase):
     def __init__(self, maze):
         super().__init__(maze)
-        self.maze_list: List[List[int]] = [list(row) for row in self.maze.maze_map]
+        self.solver = MazeSolver()
+        self.solver.load(self.maze.maze_map)
 
     def find_path(
-        self, start: NDArray | Tuple[int, int], goal: NDArray | Tuple[int, int]
+        self, start: Tuple[int, int], goal: Tuple[int, int]
     ) -> Optional[List[Tuple[int, int]]]:
-        return astar(self.maze_list, start[0], start[1], goal[0], goal[1])
+        return self.solver.astar(start, goal)
+
+
+def stara_rs_preprocess(df):
+    astar_mazes = []
+    for row in tqdm(
+        df.itertuples(), desc="[stara-rs] Create AStarRS objects", total=len(df)
+    ):
+        maze = row.maze
+        astar_mazes.append(AStarRS(maze))
+
+    res = []
+    for astar_maze in tqdm(
+        astar_mazes, desc="[stara-rs] Find Path for Mazes", total=len(astar_mazes)
+    ):
+        start = (astar_maze.maze.start[0], astar_maze.maze.start[1])
+        goal = (astar_maze.maze.goal[0], astar_maze.maze.goal[1])
+        start_time = time_ns()
+        astar_maze.find_path(start, goal)
+        end_time = time_ns()
+        res.append(
+            {
+                "seed": astar_maze.maze.seed,
+                "pyo3_pp": end_time - start_time,
+            }
+        )
+    return pd.DataFrame(res)
 
 
 def process_row(row):
     maze: VMaze = row["maze"]
 
     # Naive A* search
+    naive = AstarNaive(maze)
     start_time = time_ns()
-    AstarNaive(maze).find_path(maze.start, maze.goal)
+    naive.find_path(maze.start, maze.goal)
     end_time = time_ns()
     row["naive"] = end_time - start_time
 
     # StdLib A* search
+    stdlib = AStarStdLib(maze)
     start_time = time_ns()
-    AStarStdLib(maze).find_path(maze.start, maze.goal)
+    stdlib.find_path(maze.start, maze.goal)
     end_time = time_ns()
     row["stdlib"] = end_time - start_time
 
     # Rust A* search
+    rs = AStarRS(maze)
+    start = (maze.start[0], maze.start[1])
+    goal = (maze.goal[0], maze.goal[1])
     start_time = time_ns()
-    AStarRS(maze).find_path(maze.start, maze.goal)
+    rs.find_path(start, goal)
     end_time = time_ns()
     row["pyo3"] = end_time - start_time
 
     # numba A* search
+    numba = AStarNumba(maze)
     start_time = time_ns()
-    AStarNumba(maze).find_path(maze.start, maze.goal)
+    numba.find_path(maze.start, maze.goal)
     end_time = time_ns()
     row["numba"] = end_time - start_time
 
@@ -61,7 +94,22 @@ def process_row(row):
 
 
 def strip_df(df) -> pd.DataFrame:
-    df = df.drop(columns=["maze", "min_valid_paths", "start", "goal"])
+    try:
+        df = df.drop(columns=["maze"])
+    except KeyError:
+        logger.warning("maze column not found")
+    try:
+        df = df.drop(columns=["min_valid_paths"])
+    except KeyError:
+        logger.warning("min_valid_paths column not found")
+    try:
+        df = df.drop(columns=["start"])
+    except KeyError:
+        logger.warning("start column not found")
+    try:
+        df = df.drop(columns=["goal"])
+    except KeyError:
+        logger.warning("goal column not found")
     df = df.dropna()
     # 'size' column is a category
     df["size"] = pd.Categorical(df["size"])
@@ -78,9 +126,15 @@ def main():
     maze_size = mazes.iloc[0]["size"]
     logger.info(f"Maze size: {maze_size}")
 
-    tqdm.pandas(desc="Processing mazes")
+    tqdm.pandas(desc="[Benchmark] Processing mazes")
 
     mazes = mazes.progress_apply(process_row, axis=1)
+
+    logger.info("[stara-rs] preprocessing")
+    stara_rs_mazes = stara_rs_preprocess(mazes)
+
+    #  merge the results
+    mazes = strip_df(mazes).merge(stara_rs_mazes, on="seed")
 
     logger.info("Running Nuitka")
 
