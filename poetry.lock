@@ -450,6 +450,24 @@ reference = "HEAD"
 resolved_reference = "685abfbe9869fa3ca23ca464cd20c06269e68970"
 
 [[package]]
+name = "stara-astar-stdlib"
+version = "0.1.0"
+description = ""
+optional = false
+python-versions = "^3.12"
+files = []
+develop = false
+
+[package.dependencies]
+stara-maze-generator = {git = "https://github.com/valerius21/Stara-Maze-Generator.git", branch = "numpy-2.1.3"}
+
+[package.source]
+type = "git"
+url = "https://github.com/valerius21/stara_astar_stdlib.git"
+reference = "numpy-2.1.3"
+resolved_reference = "09d266bebc505b8521c920d9b7f35487ea9a0353"
+
+[[package]]
 name = "stara-maze-generator"
 version = "0.2.2"
 description = "Creating mazes using prims' algorithm for the stara project"
@@ -640,4 +658,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "52f4e5226485f1385968ff61a377cab43085a366314281f6f761c6c19b799f10"
+content-hash = "d5b765d6439232060821d2bf3c9288381e6fba3c6847793b2b48fbd98b2eb507"
