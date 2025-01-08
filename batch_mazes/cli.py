@@ -3,6 +3,9 @@ from stara_maze_generator.vmaze import VMaze
 import pandas as pd
 import numpy as np
 from loguru import logger
+from tqdm import tqdm
+
+MAX_SEED = 10_000_000_000
 
 
 def main():
@@ -13,32 +16,18 @@ def main():
     parser.add_argument("--output-path", type=str, default="mazes.pkl")
     args = parser.parse_args()
 
-    if args.maze_count > 10_000_000:
+    if args.maze_count > MAX_SEED:
         logger.error("maze-count must be less than 10_000_000")
         return
 
-    tries = 0
-    while tries < 10:
-        # create maze_count unique seeds with a max seed of <= 10_000_000
-        rng = np.random.default_rng(0xDEADBEEF)
-        seeds = rng.integers(0, 10_000_000, args.maze_count)
-        unique_seeds = np.unique(seeds)
-        if len(unique_seeds) != args.maze_count:
-            logger.warning(f"Not enough unique seeds, retrying ({tries + 1}/10)")
-            tries += 1
-            continue
-        break
-
-    if tries == 10:
-        logger.error("Failed to generate enough unique seeds")
-        return
-
-    logger.info(f"Found {len(unique_seeds)} unique seeds")
+    rng = np.random.default_rng()
+    seeds = rng.choice(MAX_SEED, args.maze_count, replace=False)
 
     logger.info(f"Generating {args.maze_count} mazes")
     df = pd.DataFrame()
 
-    for seed in seeds:
+    for i in tqdm(range(args.maze_count)):
+        seed = seeds[i]
         maze = VMaze(
             size=args.maze_size,
             seed=seed,

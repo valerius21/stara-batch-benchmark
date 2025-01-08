@@ -10,6 +10,7 @@ python = "^3.12"
 pandas = "^2.2.3"
 numpy = "^2.2.1"
 stara-maze-generator = {git = "https://github.com/valerius21/Stara-Maze-Generator.git"}
+tqdm = "^4.67.1"
 
 [tool.poetry.scripts]
 batch-mazes = "batch_mazes.cli:main"
