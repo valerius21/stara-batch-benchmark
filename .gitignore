@@ -345,4 +345,4 @@ cython_debug/
 
 *_maze.html
 *_maze.json
-.pkl
+*.pkl
