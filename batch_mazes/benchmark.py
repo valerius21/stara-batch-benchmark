@@ -61,6 +61,14 @@ def process_row(row):
     return row
 
 
+def strip_df(df) -> pd.DataFrame:
+    df = df.drop(columns=["maze", "min_valid_paths", "start", "goal"])
+    df = df.dropna()
+    # 'size' column is a category
+    df["size"] = pd.Categorical(df["size"])
+    return df
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--nuitka-bin", type=str, default="astar_nuitka.bin")
@@ -81,11 +89,14 @@ def main():
     process = subprocess.run([args.nuitka_bin, "--maze-file", args.maze_file])
     logger.info(f"Nuitka exit code: {process.returncode}")
 
+    mazes = strip_df(mazes)
     logger.info("Merging results on 'seed' column")
-    # TODO: <maze-file>.pkl.json contains the results of the nuitka run
+    #  <maze-file>.pkl.json contains the results of the nuitka run
     #  so we can just read that file and merge the results
     #  on the seed column
     mazes = pd.read_json(f"{args.maze_file}.json").merge(mazes, on="seed")
+
+    logger.info("df.head():\n{}".format(mazes.head()))
 
     logger.info("Saving results")
     timestamp = str(time()).split(".")[0]
