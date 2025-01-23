@@ -5,6 +5,7 @@ import subprocess
 
 
 import pandas as pd
+import numpy as np
 from loguru import logger
 from tqdm import tqdm
 
@@ -16,9 +17,29 @@ from stara_astar_numba.astar_numba import AStarNumba
 
 from stara_maze_generator.pathfinder.base import PathfinderBase
 from stara_rs.stara_rs import MazeSolver
+from stara_cpp.stara_cpp import AStar as AstarCpp
+from stara_cpp.stara_cpp import load_maze as load_cpp_maze
 
 # Number of runs, if the time is less than 1ns, we run N times and take the average
 N = 1_000
+
+
+class AstarCxx(PathfinderBase):
+    def __init__(self, maze: VMaze) -> None:
+        super().__init__(maze)
+        mmap = maze.maze_map.copy()
+
+        # cast mmap elements to np.int32
+
+        mmap = mmap.astype(np.int32)
+
+        maze_ptr = load_cpp_maze(mmap)
+        self.solver = AstarCpp(maze_ptr)
+
+    def find_path(
+        self, start: Tuple[int, int], goal: Tuple[int, int]
+    ) -> Optional[List[Tuple[int, int]]]:
+        return self.solver.find_path(start, goal)
 
 
 class AStarRS(PathfinderBase):
@@ -127,6 +148,25 @@ def process_row(row):
         end_time = time_ns()
         delta = (end_time - start_time) / N
     row["numba"] = delta
+
+    # cpp
+
+    cxx = AstarCxx(maze)
+    start_time = time_ns()
+    for _ in range(N):
+        cxx.find_path(maze.start, maze.goal)
+    end_time = time_ns()
+    delta = (end_time - start_time) / N
+    if delta <= 1:
+        start_time = time_ns()
+        for _ in range(N):
+            res = cxx.find_path(maze.start, maze.goal)
+            if res is None:
+                logger.warning("Path not found")
+                break
+        end_time = time_ns()
+        delta = (end_time - start_time) / N
+    row["cpp"] = delta
 
     return row
 
