@@ -38,7 +38,9 @@ class AstarCxx(PathfinderBase):
         self.solver = AstarCpp(maze_ptr)
 
     def find_path(
-        self, start: Tuple[int, int], goal: Tuple[int, int]
+        self,
+        start: NDArray[np.int32] | Tuple[int, int],
+        goal: NDArray[np.int32] | Tuple[int, int],
     ) -> Optional[List[Tuple[int, int]]]:
         return self.solver.find_path(start, goal)
 
@@ -201,8 +203,6 @@ def main():
     parser.add_argument("--shuffle", type=bool, default=False)
     parser.add_argument("--nuitka-bin", type=str, default="astar_nuitka.bin")
     parser.add_argument("--maze-file", type=str, default="10x10_1000.pkl")
-    parser.add_argument("--maze-size", type=int, default=10)
-    parser.add_argument("--maze-valid-path-count", type=int, default=3)
     args = parser.parse_args()
 
     mazes: pd.DataFrame | pd.Series = pd.read_pickle(args.maze_file)
@@ -214,7 +214,9 @@ def main():
     if args.shuffle:
         mazes = mazes.progress_apply(process_row_shuffle, axis=1)
     else:
-        mazes = mazes.progress_apply(process_row, axis=1)
+        mazes = mazes.progress_apply(
+            lambda row: process_row(row, row["size"], row["min_valid_paths"]), axis=1
+        )
 
     logger.info("[stara-rs] preprocessing")
     stara_rs_mazes = stara_rs_preprocess(mazes)
