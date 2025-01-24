@@ -7,6 +7,7 @@ import random
 
 import pandas as pd
 import numpy as np
+from numpy.typing import NDArray
 from loguru import logger
 from tqdm import tqdm
 
@@ -20,6 +21,8 @@ from stara_maze_generator.pathfinder.base import PathfinderBase
 from stara_rs.stara_rs import MazeSolver
 from stara_cpp.stara_cpp import AStar as AstarCpp
 from stara_cpp.stara_cpp import load_maze as load_cpp_maze
+
+from batch_mazes.generator import generate_maze
 
 
 class AstarCxx(PathfinderBase):
@@ -47,7 +50,9 @@ class AStarRS(PathfinderBase):
         self.solver.load(self.maze.maze_map)
 
     def find_path(
-        self, start: Tuple[int, int], goal: Tuple[int, int]
+        self,
+        start: NDArray[np.int32] | Tuple[int, int],
+        goal: NDArray[np.int32] | Tuple[int, int],
     ) -> Optional[List[Tuple[int, int]]]:
         return self.solver.astar(start, goal)
 
@@ -88,13 +93,15 @@ def stara_rs_preprocess(df, N=1_000):
 
 def run_find_path(solver: PathfinderBase, maze: VMaze, N=1_000) -> float:
     start_time = time_ns()
-    solver.find_path(maze.start, maze.goal)
+    start = (maze.start[0], maze.start[1])
+    goal = (maze.goal[0], maze.goal[1])
+    solver.find_path(start, goal)
     end_time = time_ns()
     delta = end_time - start_time
     if delta <= 1:
         start_time = time_ns()
         for _ in range(N):
-            solver.find_path(maze.start, maze.goal)
+            solver.find_path(start, goal)
         end_time = time_ns()
         delta = (end_time - start_time) / N
     return delta
@@ -122,8 +129,26 @@ def shuffe_row_benchmark(maze: VMaze, runs=1_000):
     return options
 
 
-def process_row(row):
+def get_maze_from_dataframe(row, maze_size, maze_valid_path_count):
+    if row["seed"] is None:
+        raise ValueError("seed is required")
+    return generate_maze(maze_size, row["seed"], maze_valid_path_count)
+
+
+def process_row_shuffle(row, maze_size, maze_valid_path_count):
     maze: VMaze = row["maze"]
+    if maze is None:
+        maze = get_maze_from_dataframe(row, maze_size, maze_valid_path_count)
+    results = shuffe_row_benchmark(maze)
+    for key, value in results.items():
+        row[key] = np.mean(value["times"])
+    return row
+
+
+def process_row(row, maze_size, maze_valid_path_count):
+    maze: VMaze = row["maze"]
+    if maze is None:
+        maze = get_maze_from_dataframe(row, maze_size, maze_valid_path_count)
 
     # Naive A* search
     naive = AstarNaive(maze)
@@ -173,8 +198,11 @@ def strip_df(df) -> pd.DataFrame:
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--shuffle", type=bool, default=False)
     parser.add_argument("--nuitka-bin", type=str, default="astar_nuitka.bin")
     parser.add_argument("--maze-file", type=str, default="10x10_1000.pkl")
+    parser.add_argument("--maze-size", type=int, default=10)
+    parser.add_argument("--maze-valid-path-count", type=int, default=3)
     args = parser.parse_args()
 
     mazes: pd.DataFrame | pd.Series = pd.read_pickle(args.maze_file)
@@ -183,7 +211,10 @@ def main():
 
     tqdm.pandas(desc="[Benchmark] Processing mazes")
 
-    mazes = mazes.progress_apply(process_row, axis=1)
+    if args.shuffle:
+        mazes = mazes.progress_apply(process_row_shuffle, axis=1)
+    else:
+        mazes = mazes.progress_apply(process_row, axis=1)
 
     logger.info("[stara-rs] preprocessing")
     stara_rs_mazes = stara_rs_preprocess(mazes)
