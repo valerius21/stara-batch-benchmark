@@ -2,6 +2,7 @@ import argparse
 from time import time_ns, time
 from typing import Tuple, List, Optional
 import subprocess
+import random
 
 
 import pandas as pd
@@ -85,18 +86,40 @@ def stara_rs_preprocess(df, N=1_000):
     return pd.DataFrame(res)
 
 
-def run_find_path(impl: PathfinderBase, maze: VMaze, N=1_000) -> float:
+def run_find_path(solver: PathfinderBase, maze: VMaze, N=1_000) -> float:
     start_time = time_ns()
-    impl.find_path(maze.start, maze.goal)
+    solver.find_path(maze.start, maze.goal)
     end_time = time_ns()
     delta = end_time - start_time
     if delta <= 1:
         start_time = time_ns()
         for _ in range(N):
-            impl.find_path(maze.start, maze.goal)
+            solver.find_path(maze.start, maze.goal)
         end_time = time_ns()
         delta = (end_time - start_time) / N
     return delta
+
+
+def shuffe_row_benchmark(maze: VMaze, runs=1_000):
+    options = {
+        "naive": {"runs": runs, "instance": AstarNaive(maze), "times": []},
+        "stdlib": {"runs": runs, "instance": AStarStdLib(maze), "times": []},
+        "rust": {"runs": runs, "instance": AStarRS(maze), "times": []},
+        "numba": {"runs": runs, "instance": AStarNumba(maze), "times": []},
+        "cpp": {"runs": runs, "instance": AstarCxx(maze), "times": []},
+    }
+    has_runs_left = any(option["runs"] > 0 for option in options.values())
+    while has_runs_left:
+        random_impl = random.choice(
+            list([key for key in options.keys() if options[key]["runs"] > 0])
+        )
+        option = options[random_impl]
+        option["runs"] -= 1
+        time = run_find_path(option["instance"], maze)
+        option["times"].append(time)
+        has_runs_left = any(option["runs"] > 0 for option in options.values())
+
+    return options
 
 
 def process_row(row):
