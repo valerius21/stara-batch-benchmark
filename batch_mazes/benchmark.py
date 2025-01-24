@@ -20,9 +20,6 @@ from stara_rs.stara_rs import MazeSolver
 from stara_cpp.stara_cpp import AStar as AstarCpp
 from stara_cpp.stara_cpp import load_maze as load_cpp_maze
 
-# Number of runs, if the time is less than 1ns, we run N times and take the average
-N = 1_000
-
 
 class AstarCxx(PathfinderBase):
     def __init__(self, maze: VMaze) -> None:
@@ -54,7 +51,7 @@ class AStarRS(PathfinderBase):
         return self.solver.astar(start, goal)
 
 
-def stara_rs_preprocess(df):
+def stara_rs_preprocess(df, N=1_000):
     astar_mazes = []
     for row in tqdm(
         df.itertuples(), desc="[stara-rs] Create AStarRS objects", total=len(df)
@@ -88,85 +85,42 @@ def stara_rs_preprocess(df):
     return pd.DataFrame(res)
 
 
+def run_find_path(impl: PathfinderBase, maze: VMaze, N=1_000) -> float:
+    start_time = time_ns()
+    impl.find_path(maze.start, maze.goal)
+    end_time = time_ns()
+    delta = end_time - start_time
+    if delta <= 1:
+        start_time = time_ns()
+        for _ in range(N):
+            impl.find_path(maze.start, maze.goal)
+        end_time = time_ns()
+        delta = (end_time - start_time) / N
+    return delta
+
+
 def process_row(row):
     maze: VMaze = row["maze"]
 
     # Naive A* search
     naive = AstarNaive(maze)
-    start_time = time_ns()
-    naive.find_path(maze.start, maze.goal)
-    end_time = time_ns()
-    delta = end_time - start_time
-    if delta <= 1:
-        start_time = time_ns()
-        for _ in range(N):
-            naive.find_path(maze.start, maze.goal)
-        end_time = time_ns()
-        delta = (end_time - start_time) / N
-    row["naive"] = delta
+    row["naive"] = run_find_path(naive, maze)
 
     # StdLib A* search
     stdlib = AStarStdLib(maze)
-    start_time = time_ns()
-    stdlib.find_path(maze.start, maze.goal)
-    end_time = time_ns()
-    delta = end_time - start_time
-    if delta <= 1:
-        start_time = time_ns()
-        for _ in range(N):
-            stdlib.find_path(maze.start, maze.goal)
-        end_time = time_ns()
-        delta = (end_time - start_time) / N
-    row["stdlib"] = delta
+    row["stdlib"] = run_find_path(stdlib, maze)
 
     # Rust A* search
     rs = AStarRS(maze)
-    start = (maze.start[0], maze.start[1])
-    goal = (maze.goal[0], maze.goal[1])
-    start_time = time_ns()
-    rs.find_path(start, goal)
-    end_time = time_ns()
-    delta = end_time - start_time
-    if delta <= 1:
-        start_time = time_ns()
-        for _ in range(N):
-            rs.find_path(start, goal)
-        end_time = time_ns()
-        delta = (end_time - start_time) / N
-    row["pyo3"] = delta
+    row["pyo3"] = run_find_path(rs, maze)
 
     # numba A* search
     numba = AStarNumba(maze)
-    start_time = time_ns()
-    numba.find_path(maze.start, maze.goal)
-    end_time = time_ns()
-    delta = end_time - start_time
-    if delta <= 1:
-        start_time = time_ns()
-        for _ in range(N):
-            numba.find_path(maze.start, maze.goal)
-        end_time = time_ns()
-        delta = (end_time - start_time) / N
-    row["numba"] = delta
+    row["numba"] = run_find_path(numba, maze)
 
-    # cpp
-
+    # C++ A* search
     cxx = AstarCxx(maze)
-    start_time = time_ns()
-    for _ in range(N):
-        cxx.find_path(maze.start, maze.goal)
-    end_time = time_ns()
-    delta = (end_time - start_time) / N
-    if delta <= 1:
-        start_time = time_ns()
-        for _ in range(N):
-            res = cxx.find_path(maze.start, maze.goal)
-            if res is None:
-                logger.warning("Path not found")
-                break
-        end_time = time_ns()
-        delta = (end_time - start_time) / N
-    row["cpp"] = delta
+    row["cpp"] = run_find_path(cxx, maze)
 
     return row
 
