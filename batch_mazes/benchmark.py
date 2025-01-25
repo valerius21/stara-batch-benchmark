@@ -110,25 +110,25 @@ def run_find_path(solver: PathfinderBase, maze: VMaze, N=1_000) -> float:
 
 
 def shuffe_row_benchmark(maze: VMaze, runs=1_000):
-    options = {
+    data = {
         "naive": {"runs": runs, "instance": AstarNaive(maze), "times": []},
         "stdlib": {"runs": runs, "instance": AStarStdLib(maze), "times": []},
         "rust": {"runs": runs, "instance": AStarRS(maze), "times": []},
         "numba": {"runs": runs, "instance": AStarNumba(maze), "times": []},
         "cpp": {"runs": runs, "instance": AstarCxx(maze), "times": []},
     }
-    has_runs_left = any(option["runs"] > 0 for option in options.values())
+    has_runs_left = any(option["runs"] > 0 for option in data.values())
     while has_runs_left:
         random_impl = random.choice(
-            list([key for key in options.keys() if options[key]["runs"] > 0])
+            list([key for key in data.keys() if data[key]["runs"] > 0])
         )
-        option = options[random_impl]
+        option = data[random_impl]
         option["runs"] -= 1
         time = run_find_path(option["instance"], maze)
         option["times"].append(time)
-        has_runs_left = any(option["runs"] > 0 for option in options.values())
+        has_runs_left = any(option["runs"] > 0 for option in data.values())
 
-    return options
+    return data
 
 
 def get_maze_from_dataframe(row, maze_size, maze_valid_path_count):
@@ -138,6 +138,9 @@ def get_maze_from_dataframe(row, maze_size, maze_valid_path_count):
 
 
 def process_row_shuffle(row, maze_size, maze_valid_path_count):
+    # check if row has 'maze' column
+    if "maze" not in row:
+        row["maze"] = None
     maze: VMaze = row["maze"]
     if maze is None:
         maze = get_maze_from_dataframe(row, maze_size, maze_valid_path_count)
@@ -148,6 +151,9 @@ def process_row_shuffle(row, maze_size, maze_valid_path_count):
 
 
 def process_row(row, maze_size, maze_valid_path_count):
+    # check if row has 'maze' column
+    if "maze" not in row:
+        row["maze"] = None
     maze: VMaze = row["maze"]
     if maze is None:
         maze = get_maze_from_dataframe(row, maze_size, maze_valid_path_count)
@@ -212,7 +218,10 @@ def main():
     tqdm.pandas(desc="[Benchmark] Processing mazes")
 
     if args.shuffle:
-        mazes = mazes.progress_apply(process_row_shuffle, axis=1)
+        mazes = mazes.progress_apply(
+            lambda row: process_row_shuffle(row, row["size"], row["min_valid_paths"]),
+            axis=1,
+        )
     else:
         mazes = mazes.progress_apply(
             lambda row: process_row(row, row["size"], row["min_valid_paths"]), axis=1
