@@ -3,6 +3,7 @@ import random
 import subprocess
 from time import perf_counter_ns, time
 from typing import List, Optional, Tuple
+from uuid import uuid4
 
 import numpy as np
 import pandas as pd
@@ -102,20 +103,20 @@ def get_maze_from_dataframe(row, maze_size, maze_valid_path_count):
     return generate_maze(maze_size, row["seed"], maze_valid_path_count)
 
 
-def process_row_shuffle(row, maze_size, maze_valid_path_count):
+def process_row_shuffle(row, maze_size, maze_valid_path_count, nuitka_bin):
     # check if row has 'maze' column
     if "maze" not in row:
         row["maze"] = None
     maze: VMaze = row["maze"]
     if maze is None:
         maze = get_maze_from_dataframe(row, maze_size, maze_valid_path_count)
-    results = shuffe_row_benchmark(maze)
+    results = shuffe_row_benchmark(maze, nuitka_bin)
     for key, value in results.items():
         row[key] = np.mean(value["times"])
     return row
 
 
-def process_row(row, maze_size, maze_valid_path_count):
+def process_row(row, maze_size, maze_valid_path_count, nuitka_path, RUN_ID):
     # check if row has 'maze' column
     if "maze" not in row:
         row["maze"] = None
@@ -142,6 +143,27 @@ def process_row(row, maze_size, maze_valid_path_count):
     # C++ A* search
     cxx = AstarCxx(maze)
     row["cpp"] = run_find_path(cxx, maze)
+
+    # Nuitka
+    process = subprocess.run(
+        [
+            str(e)
+            for e in [
+                nuitka_path,
+                "--maze-size",
+                maze_size,
+                "--maze-seed",
+                maze.seed,
+                "--benchmark-id",
+                RUN_ID,
+            ]
+        ]
+    )
+    if process.returncode != 0:
+        logger.warning(f"Nuitka exit code: {process.returncode}")
+    # else:
+    #     df = pd.read_csv(f"maze_{RUN_ID}.csv")
+    #     row["nuitka"] = df["times"]
 
     return row
 
@@ -175,6 +197,7 @@ def main():
     parser.add_argument("--nuitka-bin", type=str, default="astar_nuitka.bin")
     parser.add_argument("--maze-file", type=str, default="10x10_1000.pkl")
     args = parser.parse_args()
+    RUN_ID = uuid4()
 
     mazes: pd.DataFrame | pd.Series = pd.read_pickle(args.maze_file)
     maze_size = mazes.iloc[0]["size"]
@@ -186,30 +209,32 @@ def main():
         logger.info("Shuffler Method")
         logger.info("reading mazes into memory")
         mazes = mazes.progress_apply(
-            lambda row: process_row_shuffle(row, row["size"], row["min_valid_paths"]),
+            lambda row: process_row_shuffle(
+                row, row["size"], row["min_valid_paths"], args.nuitka_bin
+            ),
             axis=1,
         )
     else:
         logger.info("Sequential Method")
         logger.info("reading mazes into memory")
         mazes = mazes.progress_apply(
-            lambda row: process_row(row, row["size"], row["min_valid_paths"]), axis=1
+            lambda row: process_row(
+                row, row["size"], row["min_valid_paths"], args.nuitka_bin, RUN_ID
+            ),
+            axis=1,
         )
 
     #  merge the results
     mazes = strip_df(mazes)
 
-    logger.info("Running Nuitka")
-
-    process = subprocess.run([args.nuitka_bin, "--maze-file", args.maze_file])
-    logger.info(f"Nuitka exit code: {process.returncode}")
-
-    mazes = strip_df(mazes)
     logger.info("Merging results on 'seed' column")
+    # TODO: merge results from nuitka
+
     #  <maze-file>.pkl.json contains the results of the nuitka run
     #  so we can just read that file and merge the results
     #  on the seed column
-    mazes = pd.read_json(f"{args.maze_file}.json").merge(mazes, on="seed")
+    # nuitka_runs = pd.read_csv(f"maze_")
+    # mazes = .merge(mazes, on="seed")
 
     logger.info("df.head():\n{}".format(mazes.head()))
 
