@@ -1,26 +1,22 @@
 import argparse
-from time import time_ns, time
-from typing import Tuple, List, Optional
-import subprocess
 import random
+import subprocess
+from time import perf_counter_ns, time
+from typing import List, Optional, Tuple
 
-
-import pandas as pd
 import numpy as np
-from numpy.typing import NDArray
+import pandas as pd
 from loguru import logger
-from tqdm import tqdm
-
-
-from stara_maze_generator.vmaze import VMaze
+from numpy.typing import NDArray
 from stara_astar.astar import AStar as AstarNaive
-from stara_astar_stdlib.a_star_stdlib import AStarStdLib
 from stara_astar_numba.astar_numba import AStarNumba
-
-from stara_maze_generator.pathfinder.base import PathfinderBase
-from stara_rs.stara_rs import MazeSolver
+from stara_astar_stdlib.a_star_stdlib import AStarStdLib
 from stara_cpp.stara_cpp import AStar as AstarCpp
 from stara_cpp.stara_cpp import load_maze as load_cpp_maze
+from stara_maze_generator.pathfinder.base import PathfinderBase
+from stara_maze_generator.vmaze import VMaze
+from stara_rs.stara_rs import MazeSolver
+from tqdm import tqdm
 
 from batch_mazes.generator import generate_maze
 
@@ -59,54 +55,23 @@ class AStarRS(PathfinderBase):
         return self.solver.astar(start, goal)
 
 
-def stara_rs_preprocess(df, N=1_000):
-    astar_mazes = []
-    for row in tqdm(
-        df.itertuples(), desc="[stara-rs] Create AStarRS objects", total=len(df)
-    ):
-        maze = row.maze
-        astar_mazes.append(AStarRS(maze))
-
-    res = []
-    for astar_maze in tqdm(
-        astar_mazes, desc="[stara-rs] Find Path for Mazes", total=len(astar_mazes)
-    ):
-        start = (astar_maze.maze.start[0], astar_maze.maze.start[1])
-        goal = (astar_maze.maze.goal[0], astar_maze.maze.goal[1])
-        start_time = time_ns()
-        astar_maze.find_path(start, goal)
-        end_time = time_ns()
-        delta = end_time - start_time
-        if end_time - start_time <= 1:
-            start_time = time_ns()
-            for _ in range(N):
-                astar_maze.find_path(start, goal)
-            end_time = time_ns()
-
-            delta = (end_time - start_time) / N
-        res.append(
-            {
-                "seed": astar_maze.maze.seed,
-                "pyo3_pp": delta,
-            }
-        )
-    return pd.DataFrame(res)
-
-
 def run_find_path(solver: PathfinderBase, maze: VMaze, N=1_000) -> float:
-    start_time = time_ns()
     start = (maze.start[0], maze.start[1])
     goal = (maze.goal[0], maze.goal[1])
-    solver.find_path(start, goal)
-    end_time = time_ns()
-    delta = end_time - start_time
-    if delta <= 1:
-        start_time = time_ns()
-        for _ in range(N):
-            solver.find_path(start, goal)
-        end_time = time_ns()
-        delta = (end_time - start_time) / N
-    return delta
+    start_time = perf_counter_ns()
+    for _ in range(N):
+        solver.find_path(start, goal)
+    end_time = perf_counter_ns()
+    # https://docs.python.org/3/library/time.html#time.get_clock_info
+    # ---------------
+    # Macbook Pro, 16" 2021 M1 Max, 32 GB RAM
+    # >>> time.get_clock_info('monotonic')
+    # namespace(implementation='mach_absolute_time()', monotonic=True, adjustable=False, resolution=4.166666666666666e-08)
+    # >>> time.get_clock_info('time')
+    # namespace(implementation='clock_gettime(CLOCK_REALTIME)', monotonic=False, adjustable=True, resolution=1.0000000000000002e-06)
+    # >>> time.get_clock_info('perf_counter')
+    # namespace(implementation='mach_absolute_time()', monotonic=True, adjustable=False, resolution=4.166666666666666e-08)
+    return (end_time - start_time) / N
 
 
 def shuffe_row_benchmark(maze: VMaze, runs=1_000):
@@ -227,11 +192,8 @@ def main():
             lambda row: process_row(row, row["size"], row["min_valid_paths"]), axis=1
         )
 
-    logger.info("[stara-rs] preprocessing")
-    stara_rs_mazes = stara_rs_preprocess(mazes)
-
     #  merge the results
-    mazes = strip_df(mazes).merge(stara_rs_mazes, on="seed")
+    mazes = strip_df(mazes)
 
     logger.info("Running Nuitka")
 
