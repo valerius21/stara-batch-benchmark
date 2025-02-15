@@ -238,8 +238,7 @@ def main():
 
     logger.info("df.head():\n{}".format(mazes.head()))
 
-    timestamp = str(time()).split(".")[0]
-    file_name = f"{args.maze_file}_run-{timestamp}.pkl"
+    file_name = f"{args.maze_file}_{RUN_ID}.pkl"
 
     logger.info(f"Saving results to {file_name}")
     mazes.to_pickle(file_name)
