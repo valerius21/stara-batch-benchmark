@@ -238,7 +238,7 @@ def main():
 
     logger.info("df.head():\n{}".format(mazes.head()))
 
-    file_name = f"{args.maze_file}_{RUN_ID}.pkl"
+    file_name = f"{args.maze_file}_{RUN_ID}_{maze_size}.pkl"
 
     logger.info(f"Saving results to {file_name}")
     mazes.to_pickle(file_name)
