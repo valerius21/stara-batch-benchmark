@@ -347,3 +347,4 @@ cython_debug/
 *_maze.json
 *.pkl
 *.pkl.json
+maze_*.csv
