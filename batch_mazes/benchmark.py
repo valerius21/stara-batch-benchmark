@@ -183,11 +183,15 @@ def main():
     tqdm.pandas(desc="[Benchmark] Processing mazes")
 
     if args.shuffle:
+        logger.info("Shuffler Method")
+        logger.info("reading mazes into memory")
         mazes = mazes.progress_apply(
             lambda row: process_row_shuffle(row, row["size"], row["min_valid_paths"]),
             axis=1,
         )
     else:
+        logger.info("Sequential Method")
+        logger.info("reading mazes into memory")
         mazes = mazes.progress_apply(
             lambda row: process_row(row, row["size"], row["min_valid_paths"]), axis=1
         )
